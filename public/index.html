@@ -30,6 +30,15 @@
         >
         <label class="btn"><input type="file" id="music" accept="audio/*" hidden />음악 넣기 (선택)</label>
         <label>음악 페이드아웃(초) <input type="number" id="audioFadeOutSec" min="0" max="30" step="0.5" value="2" /></label>
+        <label
+          >사진/영상 기본 크기
+          <select id="mediaBaseScale">
+            <option value="100" selected>100%</option>
+            <option value="90">90%</option>
+            <option value="80">80%</option>
+            <option value="70">70%</option>
+          </select>
+        </label>
         <button type="button" class="btn-huge" id="btnOneClick">한 번에 숏폼 만들기</button>
         <p class="hint small">사진이 없으면 샘플로 자동 구성됩니다. 음악이 있으면 그 길이에 맞춰 짜요.</p>
         <ul id="fileList" class="file-list"></ul>
@@ -70,6 +79,12 @@
         <label
           >페이지 효과
           <select id="sceneEffect" disabled></select>
+        </label>
+        <label
+          >이 장면 미디어 크기
+          <select id="sceneMediaScale" disabled>
+            <option value="">기본값(왼쪽 전체)</option>
+          </select>
         </label>
         <label
           >글꼴 (Google Fonts 번들)

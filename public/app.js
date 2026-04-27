@@ -38,6 +38,7 @@ const els = {
   sceneDur: document.getElementById("sceneDur"),
   sceneAnim: document.getElementById("sceneAnim"),
   sceneEffect: document.getElementById("sceneEffect"),
+  sceneMediaScale: document.getElementById("sceneMediaScale"),
   sceneFont: document.getElementById("sceneFont"),
   stickerPalette: document.getElementById("stickerPalette"),
   btnStickerPlace: document.getElementById("btnStickerPlace"),
@@ -52,6 +53,7 @@ const els = {
   layoutEditHint: document.getElementById("layoutEditHint"),
   sceneFontSize: document.getElementById("sceneFontSize"),
   audioFadeOutSec: document.getElementById("audioFadeOutSec"),
+  mediaBaseScale: document.getElementById("mediaBaseScale"),
 };
 
 /** 스티커 팔레트 (유니코드 이모지 · API 불필요) */
@@ -215,6 +217,7 @@ const project = {
   mediaFiles: [],
   audioFile: null,
   audioFadeOutSec: 2,
+  mediaBaseScale: 100,
 };
 
 let selectedIndex = -1;
@@ -441,6 +444,7 @@ async function buildScenesFromDuration(totalSec, files) {
         transition: "fade",
         textStyle: { ...tplStyle("mood") },
         effect: "none",
+        mediaScale: null, // null이면 전역 기본값(project.mediaBaseScale) 사용
         stickers: [],
         img: null,
         videoEl: null,
@@ -510,6 +514,29 @@ function sceneAtTime(globalT) {
 
 function clampAudioFadeOutSec(v) {
   return Math.max(0, Math.min(30, Number(v) || 0));
+}
+
+function clampMediaBaseScale(v) {
+  return Math.max(50, Math.min(120, Number(v) || 100));
+}
+
+function clampSceneMediaScale(v) {
+  return Math.max(10, Math.min(200, Number(v) || 100));
+}
+
+function populateSceneMediaScaleSelect() {
+  if (!els.sceneMediaScale) return;
+  els.sceneMediaScale.innerHTML = "";
+  const d = document.createElement("option");
+  d.value = "";
+  d.textContent = "기본값(왼쪽 전체)";
+  els.sceneMediaScale.appendChild(d);
+  for (let p = 10; p <= 200; p += 10) {
+    const o = document.createElement("option");
+    o.value = String(p);
+    o.textContent = `${p}%`;
+    els.sceneMediaScale.appendChild(o);
+  }
 }
 
 function applyAudioFadeAtTime(currentSec, maxSec) {
@@ -1111,6 +1138,9 @@ function hitTestLayoutEdit(clientX, clientY) {
 function drawMedia(sc, p, localSec, globalT) {
   const a = sc.animation || "zoomIn";
   const pulseT = globalT * 4.5 + localSec * 2.2;
+  const effectiveScalePct =
+    sc?.mediaScale == null ? clampMediaBaseScale(project.mediaBaseScale) : clampSceneMediaScale(sc.mediaScale);
+  const baseScale = effectiveScalePct / 100;
 
   if (sc.type === "video" && sc.videoEl) {
     const v = sc.videoEl;
@@ -1142,7 +1172,7 @@ function drawMedia(sc, p, localSec, globalT) {
       }
       const vw = v.videoWidth || W;
       const vh = v.videoHeight || H;
-      const r = Math.max(W / vw, H / vh) * scaleExtra;
+      const r = Math.max(W / vw, H / vh) * scaleExtra * baseScale;
       const dw = vw * r;
       const dh = vh * r;
       const x = (W - dw) / 2 + dx;
@@ -1174,7 +1204,7 @@ function drawMedia(sc, p, localSec, globalT) {
   } else if (a === "none") {
     scaleM = 1.05;
   }
-  const r0 = Math.max(W / im.width, H / im.height) * scaleM;
+  const r0 = Math.max(W / im.width, H / im.height) * scaleM * baseScale;
   const dw = im.width * r0;
   const dh = im.height * r0;
   const x = (W - dw) / 2 + dx;
@@ -1408,6 +1438,10 @@ function selectScene(i) {
     els.sceneDur.disabled = true;
     els.sceneAnim.disabled = true;
     els.sceneEffect.disabled = true;
+    if (els.sceneMediaScale) {
+      els.sceneMediaScale.disabled = true;
+      els.sceneMediaScale.value = "";
+    }
     els.sceneFont.disabled = true;
     els.btnClearStickers.disabled = true;
     els.btnStickerPlace.disabled = true;
@@ -1439,6 +1473,11 @@ function selectScene(i) {
   els.sceneDur.disabled = false;
   els.sceneAnim.disabled = false;
   els.sceneEffect.disabled = false;
+  if (els.sceneMediaScale) {
+    els.sceneMediaScale.disabled = false;
+    const v = sc.mediaScale == null ? "" : String(Math.round(clampSceneMediaScale(sc.mediaScale) / 10) * 10);
+    els.sceneMediaScale.value = v;
+  }
   els.sceneFont.disabled = false;
   els.btnClearStickers.disabled = false;
   els.btnStickerPlace.disabled = false;
@@ -1815,6 +1854,23 @@ els.sceneEffect.addEventListener("change", (e) => {
   project.scenes[selectedIndex].effect = e.target.value;
   if (!playing) drawFrame(sceneAtTimeFromIndex(selectedIndex));
 });
+
+if (els.sceneMediaScale) {
+  els.sceneMediaScale.addEventListener("change", (e) => {
+    if (selectedIndex < 0) return;
+    const raw = String(e.target.value || "").trim();
+    const sc = project.scenes[selectedIndex];
+    if (!raw) {
+      sc.mediaScale = null;
+    } else {
+      sc.mediaScale = clampSceneMediaScale(parseInt(raw, 10));
+      e.target.value = String(sc.mediaScale);
+    }
+    if (!playing) drawFrame(sceneAtTimeFromIndex(selectedIndex));
+    const txt = sc.mediaScale == null ? "기본값(왼쪽 전체)" : `${sc.mediaScale}%`;
+    els.status.textContent = `장면 미디어 크기: ${txt}`;
+  });
+}
 
 els.sceneFont.addEventListener("change", async (e) => {
   if (selectedIndex < 0) return;
@@ -2519,6 +2575,7 @@ els.dropZone.addEventListener("drop", (e) => {
 
 (async function boot() {
   populateUiSelects();
+  populateSceneMediaScaleSelect();
   initStickerPalette();
   selectScene(-1);
   els.btnStickerPlace.disabled = true;
@@ -2530,6 +2587,21 @@ els.dropZone.addEventListener("drop", (e) => {
   if (els.audioFadeOutSec) {
     els.audioFadeOutSec.value = String(project.audioFadeOutSec || 2);
   }
+  if (els.mediaBaseScale) {
+    els.mediaBaseScale.value = String(project.mediaBaseScale || 100);
+  }
+
+if (els.mediaBaseScale) {
+  els.mediaBaseScale.addEventListener("change", (e) => {
+    const v = clampMediaBaseScale(parseInt(e.target.value, 10));
+    project.mediaBaseScale = v;
+    e.target.value = String(v);
+    if (!playing) {
+      drawFrame(selectedIndex >= 0 ? sceneAtTimeFromIndex(selectedIndex) : 0);
+    }
+    els.status.textContent = `전체 기본 미디어 크기: ${v}% (개별 장면은 오른쪽에서 따로 지정 가능)`;
+  });
+}
   try {
     await ensureFontsLoaded();
   } catch (e) {
