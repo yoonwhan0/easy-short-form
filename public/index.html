@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>쉬운 숏폼 제작기</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Black+Han+Sans&family=Do+Hyeon&family=Dongle:wght@400;700&family=Gamja+Flower&family=Gaegu:wght@400;700&family=Hi+Melody&family=Jua&family=Nanum+Pen+Script&family=Poor+Story&family=Single+Day&family=Sunflower:wght@500&family=Yeon+Sung&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Diphylleia&family=Gowun+Batang&family=Gowun+Dodum&family=Kirang+Haerang&family=Mochiy+Pop+One&family=Nanum+Brush+Script&family=Orbit&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>쉬운 숏폼 제작기</h1>
+      <p class="sub">이렇게만 하세요: <strong>① 사진 넣기</strong> (음악은 선택) → <strong>② 한 번에 숏폼</strong> → <strong>③ 미리보기</strong> → <strong>영상 다운로드</strong> (브라우저 녹화, 서버 불필요)</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel left">
+        <h2>미디어</h2>
+        <label class="btn primary"
+          ><input type="file" id="images" accept="image/*,video/*" multiple hidden />사진·영상 넣기</label
+        >
+        <label class="btn"><input type="file" id="music" accept="audio/*" hidden />음악 넣기 (선택)</label>
+        <button type="button" class="btn-huge" id="btnOneClick">한 번에 숏폼 만들기</button>
+        <p class="hint small">사진이 없으면 샘플로 자동 구성됩니다. 음악이 있으면 그 길이에 맞춰 짜요.</p>
+        <ul id="fileList" class="file-list"></ul>
+      </section>
+
+      <section class="panel center">
+        <div class="preview-wrap" id="dropZone">
+          <canvas id="preview" width="1080" height="1920"></canvas>
+        </div>
+        <div class="transport">
+          <label class="check layout-check">
+            <input type="checkbox" id="layoutEditToggle" />
+            캔버스에서 직접 옮기기
+          </label>
+          <p class="hint transport-hint" id="layoutEditHint" hidden>
+            자막·이모지를 <strong>끌어서</strong> 옮기고, <strong>모서리(자막 네 곳ㆍ이모지 오른쪽 아래 사각형)</strong>을 끌면 크기만 바뀌어요. 위에 올린 뒤 <strong>휠</strong>로도 됩니다. 미리보기가 멈출 때만 됩니다.
+          </p>
+          <div class="row">
+            <button type="button" id="btnPlay">미리보기 재생</button>
+            <button type="button" id="btnStop">처음으로</button>
+            <span id="timeLabel">0.0s</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel right">
+        <h2>장면 설정</h2>
+        <p id="sceneHint" class="muted">타임라인에서 장면을 선택하세요.</p>
+        <label>글귀 <textarea id="sceneText" rows="3" disabled></textarea></label>
+        <label>길이(초) <input type="number" id="sceneDur" min="0.3" step="0.1" disabled /></label>
+        <label>애니메이션
+          <select id="sceneAnim" disabled></select>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="sceneLiveMotion" disabled checked />
+          자막·스티커 흔들림 (역동, 미리보기)
+        </label>
+        <label
+          >페이지 효과
+          <select id="sceneEffect" disabled></select>
+        </label>
+        <label
+          >글꼴 (Google Fonts 번들)
+          <select id="sceneFont" disabled></select>
+        </label>
+        <label>글씨 크기(px) <input type="number" id="sceneFontSize" min="20" max="200" step="1" value="58" disabled /></label>
+        <div class="sticker-panel">
+          <span class="lbl">스티커 · 이모지</span>
+          <p class="hint tiny">
+            무료 폰트는 Google Fonts · 애니메이션 에셋은 <a href="https://lottiefiles.com/free" target="_blank" rel="noopener">LottieFiles</a> 같은 곳에서 JSON 받아 쓸 수 있습니다.
+          </p>
+          <div class="sticker-actions">
+            <button type="button" class="btn small" id="btnStickerPlace" title="켜면 캔버스 클릭 위치에 붙임">
+              📍 위치 찍기
+            </button>
+            <button type="button" class="btn small" id="btnClearStickers">스티커 비우기</button>
+          </div>
+          <div id="stickerPalette" class="sticker-palette"></div>
+        </div>
+        <div class="tpl">
+          <span>템플릿 (선택 장면 또는 전체)</span>
+          <div class="tpl-btns">
+            <button type="button" class="btn small" data-tpl="bright">밝은</button>
+            <button type="button" class="btn small" data-tpl="mood">감성</button>
+            <button type="button" class="btn small" data-tpl="kids">아이</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="timeline-wrap">
+      <h2>타임라인</h2>
+      <div id="timeline" class="timeline"></div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btnRender">영상 다운로드 (로컬 녹화)</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </section>
+
+    <audio id="hiddenAudio" preload="auto"></audio>
+    <script src="diag.js" defer></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
