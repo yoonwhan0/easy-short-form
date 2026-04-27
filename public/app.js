@@ -51,6 +51,7 @@ const els = {
   layoutEditToggle: document.getElementById("layoutEditToggle"),
   layoutEditHint: document.getElementById("layoutEditHint"),
   sceneFontSize: document.getElementById("sceneFontSize"),
+  audioFadeOutSec: document.getElementById("audioFadeOutSec"),
 };
 
 /** 스티커 팔레트 (유니코드 이모지 · API 불필요) */
@@ -181,6 +182,20 @@ const EFFECT_OPTIONS = [
   { value: "comic", label: "코믹·grain" },
   { value: "vintage", label: "빈티지" },
   { value: "ocean", label: "오션 블루" },
+  { value: "aurora", label: "오로라 웨이브" },
+  { value: "fireworks", label: "불꽃 파티클" },
+  { value: "bloom", label: "블룸 하이라이트" },
+  { value: "film", label: "필름 그레인+스크래치" },
+  { value: "cyber", label: "사이버 스캔라인" },
+  { value: "dust", label: "먼지 보케" },
+  { value: "glitch", label: "글리치 RGB 분리" },
+  { value: "spotlight", label: "스포트라이트" },
+  { value: "pastel", label: "파스텔 워시" },
+  { value: "lava", label: "라바 레드" },
+  { value: "forest", label: "포레스트 그린" },
+  { value: "ice", label: "아이스 민트" },
+  { value: "noir", label: "누아르 콘트라스트" },
+  { value: "sepia", label: "세피아 클래식" },
 ];
 
 let placementMode = false;
@@ -199,6 +214,7 @@ const project = {
   scenes: [],
   mediaFiles: [],
   audioFile: null,
+  audioFadeOutSec: 2,
 };
 
 let selectedIndex = -1;
@@ -492,6 +508,25 @@ function sceneAtTime(globalT) {
   return { index: last, local: 0 };
 }
 
+function clampAudioFadeOutSec(v) {
+  return Math.max(0, Math.min(30, Number(v) || 0));
+}
+
+function applyAudioFadeAtTime(currentSec, maxSec) {
+  const fade = clampAudioFadeOutSec(project.audioFadeOutSec);
+  if (!audioEl) return;
+  if (fade <= 0 || !Number.isFinite(maxSec) || maxSec <= 0) {
+    audioEl.volume = 1;
+    return;
+  }
+  const remain = Math.max(0, maxSec - Math.max(0, currentSec));
+  if (remain >= fade) {
+    audioEl.volume = 1;
+  } else {
+    audioEl.volume = Math.max(0, Math.min(1, remain / fade));
+  }
+}
+
 function drawRoundedRect(x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -689,6 +724,202 @@ function drawOverlayEffect(sc, sceneIndex, globalT, localSec) {
     g.addColorStop(1, "rgba(0,40,90,0.38)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "aurora") {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let i = 0; i < 4; i++) {
+      const y = H * (0.2 + i * 0.18) + Math.sin(globalT * 1.8 + i) * 60;
+      const g = ctx.createLinearGradient(0, y - 180, W, y + 180);
+      g.addColorStop(0, "rgba(90,255,180,0.06)");
+      g.addColorStop(0.5, "rgba(120,180,255,0.18)");
+      g.addColorStop(1, "rgba(220,120,255,0.09)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y - 200, W, 400);
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "fireworks") {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const burstCount = 8;
+    for (let b = 0; b < burstCount; b++) {
+      const bx = rnd() * W;
+      const by = rnd() * H * 0.55 + H * 0.08;
+      const phase = (globalT * 1.2 + b * 0.37) % 1;
+      const r = 30 + phase * 130;
+      for (let i = 0; i < 18; i++) {
+        const ang = (Math.PI * 2 * i) / 18 + b;
+        const x = bx + Math.cos(ang) * r;
+        const y = by + Math.sin(ang) * r;
+        ctx.fillStyle = `rgba(255,${120 + ((i * 11) % 135)},${80 + ((b * 37) % 170)},${0.1 + (1 - phase) * 0.45})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5 + (1 - phase) * 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "bloom") {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    const g = ctx.createRadialGradient(W / 2, H * 0.38, 20, W / 2, H * 0.45, H * 0.7);
+    g.addColorStop(0, "rgba(255,255,255,0.24)");
+    g.addColorStop(0.5, "rgba(255,240,200,0.10)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "film") {
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    for (let i = 0; i < 800; i++) {
+      ctx.fillStyle = rnd() > 0.5 ? "#fff" : "#000";
+      ctx.fillRect(rnd() * W, rnd() * H, 1.5, 1.5);
+    }
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    for (let i = 0; i < 4; i++) {
+      const x = rnd() * W;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + Math.sin(globalT + i) * 12, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "cyber") {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,255,255,0.08)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "rgba(90,255,255,0.12)";
+    ctx.lineWidth = 1;
+    const spacing = 24;
+    const off = Math.floor((globalT * 30) % spacing);
+    for (let y = -spacing; y < H + spacing; y += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + off);
+      ctx.lineTo(W, y + off);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "dust") {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * W;
+      const y = (rnd() * H + globalT * (6 + rnd() * 12)) % H;
+      const r = 12 + rnd() * 42;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(255,245,220,0.16)");
+      g.addColorStop(1, "rgba(255,245,220,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "glitch") {
+    ctx.save();
+    const line = 8;
+    for (let y = 0; y < H; y += line) {
+      const shift = Math.sin(globalT * 12 + y * 0.07) * 6;
+      ctx.fillStyle = "rgba(255,0,120,0.05)";
+      ctx.fillRect(shift, y, W, line / 2);
+      ctx.fillStyle = "rgba(0,220,255,0.05)";
+      ctx.fillRect(-shift, y + line / 2, W, line / 2);
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (eff === "spotlight") {
+    const cx = W * (0.5 + 0.2 * Math.sin(globalT * 0.7));
+    const cy = H * (0.36 + 0.08 * Math.cos(globalT * 0.9));
+    const g = ctx.createRadialGradient(cx, cy, 40, cx, cy, H * 0.65);
+    g.addColorStop(0, "rgba(255,255,240,0.28)");
+    g.addColorStop(0.3, "rgba(255,255,220,0.1)");
+    g.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "pastel") {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, "rgba(255,190,220,0.15)");
+    g.addColorStop(0.33, "rgba(180,220,255,0.13)");
+    g.addColorStop(0.66, "rgba(210,255,220,0.12)");
+    g.addColorStop(1, "rgba(255,235,180,0.14)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "lava") {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(255,70,40,0.1)");
+    g.addColorStop(0.55, "rgba(255,120,30,0.16)");
+    g.addColorStop(1, "rgba(70,10,10,0.4)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "forest") {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(80,170,90,0.14)");
+    g.addColorStop(1, "rgba(15,55,20,0.35)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "ice") {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(190,250,255,0.14)");
+    g.addColorStop(0.6, "rgba(120,210,255,0.1)");
+    g.addColorStop(1, "rgba(20,70,100,0.3)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "noir") {
+    ctx.save();
+    ctx.globalCompositeOperation = "color";
+    ctx.fillStyle = "#808080";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, H * 0.85);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.45)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (eff === "sepia") {
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "rgba(140,98,58,0.35)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
     return;
   }
 }
@@ -1039,6 +1270,7 @@ function loop() {
   if (!playing) return;
   const t = nowPlaybackSec();
   const maxT = totalDuration();
+  applyAudioFadeAtTime(t, maxT);
   drawFrame(t);
   els.timeLabel.textContent = `${t.toFixed(1)}s / ${maxT.toFixed(1)}s`;
   if (project.audioFile && audioEl.src) {
@@ -1070,6 +1302,7 @@ function stopPlayback(options = {}) {
   playing = false;
   cancelAnimationFrame(raf);
   audioEl.pause();
+  audioEl.volume = 1;
   els.btnPlay.textContent = "미리보기 재생";
 }
 
@@ -1107,6 +1340,7 @@ function startPlayback() {
   els.btnPlay.textContent = "일시정지";
   if (project.audioFile && audioEl.src) {
     audioEl.currentTime = Math.min(cursorSec, totalDuration());
+    applyAudioFadeAtTime(audioEl.currentTime, totalDuration());
     audioEl.play().catch((e) => {
       esf.w("startPlayback:audio play failed", e);
     });
@@ -1119,6 +1353,7 @@ function resetPreview() {
   stopPlayback({ resetToZero: true });
   if (audioEl.src) {
     audioEl.currentTime = 0;
+    audioEl.volume = 1;
   }
   drawFrame(0);
   const maxT = totalDuration();
@@ -1528,8 +1763,22 @@ els.music.addEventListener("change", (e) => {
   esf.d("music:selected", { name: f.name, type: f.type, size: f.size });
   project.audioFile = f;
   audioEl.src = URL.createObjectURL(f);
+  audioEl.volume = 1;
   els.status.textContent = `음악: ${f.name}`;
 });
+
+if (els.audioFadeOutSec) {
+  els.audioFadeOutSec.addEventListener("change", (e) => {
+    const v = clampAudioFadeOutSec(parseFloat(e.target.value));
+    project.audioFadeOutSec = v;
+    e.target.value = String(v);
+    if (!playing) {
+      applyAudioFadeAtTime(cursorSec, totalDuration());
+    }
+    els.status.textContent =
+      v > 0 ? `음악 페이드아웃: 종료 ${v.toFixed(1)}초 전부터` : "음악 페이드아웃: 사용 안 함";
+  });
+}
 
 els.btnPlay.addEventListener("click", () => {
   if (playing) {
@@ -1892,6 +2141,144 @@ function fileExtFromVideoMime(mime) {
   return "webm";
 }
 
+let ffmpegMp4 = null;
+let ffmpegLoadTask = null;
+let exportModalEl = null;
+let exportModalBarEl = null;
+let exportModalTitleEl = null;
+let exportModalDetailEl = null;
+
+function ensureExportModal() {
+  if (exportModalEl) return;
+  const wrap = document.createElement("div");
+  wrap.className = "export-modal";
+  wrap.hidden = true;
+  wrap.innerHTML = `
+    <div class="export-modal-card">
+      <h3 class="export-modal-title">영상 다운로드 준비 중...</h3>
+      <p class="export-modal-detail">잠시만 기다려 주세요.</p>
+      <div class="export-progress-track">
+        <div class="export-progress-bar"></div>
+      </div>
+      <p class="export-modal-sub">다운로드가 끝날 때까지 다른 조작은 잠시 멈춰주세요.</p>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+  exportModalEl = wrap;
+  exportModalBarEl = wrap.querySelector(".export-progress-bar");
+  exportModalTitleEl = wrap.querySelector(".export-modal-title");
+  exportModalDetailEl = wrap.querySelector(".export-modal-detail");
+}
+
+function setExportModalState({ title, detail, progress }) {
+  ensureExportModal();
+  if (title) exportModalTitleEl.textContent = title;
+  if (detail) exportModalDetailEl.textContent = detail;
+  const p = Math.max(0, Math.min(100, Math.round(progress || 0)));
+  exportModalBarEl.style.width = `${p}%`;
+}
+
+function showExportModal() {
+  ensureExportModal();
+  exportModalEl.hidden = false;
+}
+
+function hideExportModal() {
+  if (!exportModalEl) return;
+  exportModalEl.hidden = true;
+}
+
+async function ensureMp4Transcoder() {
+  if (ffmpegMp4) return ffmpegMp4;
+  if (ffmpegLoadTask) return ffmpegLoadTask;
+  ffmpegLoadTask = (async () => {
+    esf.i("mp4:ffmpeg wasm loading");
+    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([
+      import("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js"),
+      import("https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js"),
+    ]);
+    const ff = new FFmpeg();
+    const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd";
+    const coreURL = await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript");
+    const wasmURL = await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm");
+    await ff.load({
+      coreURL,
+      wasmURL,
+    });
+    ffmpegMp4 = ff;
+    esf.i("mp4:ffmpeg wasm ready");
+    return ff;
+  })();
+  return ffmpegLoadTask;
+}
+
+async function convertWebmBlobToMp4(blob, hasAudioTrack) {
+  setExportModalState({
+    title: "MP4 변환 준비 중...",
+    detail: "변환 엔진을 불러오는 중입니다.",
+    progress: 82,
+  });
+  const ff = await ensureMp4Transcoder();
+  const inName = `in-${Date.now()}.webm`;
+  const outName = `out-${Date.now()}.mp4`;
+  setExportModalState({
+    title: "MP4 변환 중...",
+    detail: "webm 파일을 mp4로 변환하고 있어요.",
+    progress: 90,
+  });
+  await ff.writeFile(inName, new Uint8Array(await blob.arrayBuffer()));
+  const args = hasAudioTrack
+    ? [
+        "-i",
+        inName,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "24",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        "-movflags",
+        "+faststart",
+        outName,
+      ]
+    : [
+        "-i",
+        inName,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "24",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        "-movflags",
+        "+faststart",
+        outName,
+      ];
+  await ff.exec(args);
+  setExportModalState({
+    title: "MP4 변환 마무리 중...",
+    detail: "출력 파일 정리 중입니다.",
+    progress: 98,
+  });
+  const data = await ff.readFile(outName);
+  try {
+    await ff.deleteFile(inName);
+  } catch (_) {}
+  try {
+    await ff.deleteFile(outName);
+  } catch (_) {}
+  return new Blob([data], { type: "video/mp4" });
+}
+
 /**
  * 캔버스·음원을 브라우저에서 MediaRecorder로 1:1 실시간 녹화 (서버/FFmpeg 불필요)
  */
@@ -1970,17 +2357,25 @@ async function downloadVideoFromCanvasRecording() {
   esf.i("export:start", { maxT, mime, hasAudioTrack, fileExt: fileExtFromVideoMime(mime) });
   els.status.textContent = "미리보기를 녹화해 저장 중… (끝날 때까지 잠시 기다리세요)";
   els.btnRender.disabled = true;
+  setExportModalState({
+    title: "영상 녹화 중...",
+    detail: "장면을 순서대로 캡처하고 있습니다.",
+    progress: 0,
+  });
+  showExportModal();
   let exportRaf = 0;
   const cleanAfter = () => {
     if (exportRaf) {
       cancelAnimationFrame(exportRaf);
     }
     audioEl.pause();
+    audioEl.volume = 1;
     cursorSec = saveCursor;
     if (!playing) {
       drawFrame(selectedIndex >= 0 ? sceneAtTimeFromIndex(selectedIndex) : saveCursor);
     }
     els.btnRender.disabled = false;
+    hideExportModal();
   };
   try {
     drawFrame(0);
@@ -2002,29 +2397,54 @@ async function downloadVideoFromCanvasRecording() {
         endOnce(err);
       });
       rec.addEventListener("stop", () => {
-        try {
-          const b = new Blob(chunks, { type: rec.mimeType || mime });
-          if (b.size < 256) {
-            esf.w("export:very small file", { size: b.size, chunks: chunks.length });
+        void (async () => {
+          try {
+            const b = new Blob(chunks, { type: rec.mimeType || mime });
+            if (b.size < 256) {
+              esf.w("export:very small file", { size: b.size, chunks: chunks.length });
+            }
+            let outBlob = b;
+            if (!String(b.type || "").toLowerCase().includes("mp4")) {
+              try {
+                els.status.textContent = "webm -> mp4 변환 중... (처음은 조금 오래 걸려요)";
+                esf.i("mp4:convert start", { inputBytes: b.size, hasAudioTrack });
+                outBlob = await convertWebmBlobToMp4(b, hasAudioTrack);
+                esf.i("mp4:convert done", { outputBytes: outBlob.size });
+              } catch (convErr) {
+                esf.w("mp4:convert failed, fallback webm", convErr);
+                els.status.textContent = `MP4 변환 실패로 WebM 저장: ${String(convErr?.message || convErr)}`;
+                outBlob = b;
+              }
+            }
+            const ext = fileExtFromVideoMime(outBlob.type || b.type || mime);
+            const outName = `shortform-${Date.now()}.mp4`;
+            const u = URL.createObjectURL(outBlob);
+            const a = document.createElement("a");
+            a.href = u;
+            a.download = outName;
+            a.click();
+            URL.revokeObjectURL(u);
+            esf.i("export:done", { bytes: outBlob.size, type: outBlob.type, name: outName });
+            els.status.textContent = `다운로드: ${outName} (${ext.toUpperCase()} 원본) · Netlify 정적에서도 OK`;
+            setTimeout(() => {
+              hideExportModal();
+            }, 120);
+            setExportModalState({
+              title: "다운로드 완료",
+              detail: `${outName} 파일 저장을 시작했습니다.`,
+              progress: 100,
+            });
+            endOnce();
+          } catch (e) {
+            endOnce(e);
           }
-          const outName = `shortform-${Date.now()}.${fileExtFromVideoMime(b.type || mime)}`;
-          const u = URL.createObjectURL(b);
-          const a = document.createElement("a");
-          a.href = u;
-          a.download = outName;
-          a.click();
-          URL.revokeObjectURL(u);
-          esf.i("export:done", { bytes: b.size, type: b.type, name: outName });
-          els.status.textContent = `다운로드: ${outName} (로컬 녹화${b.type && b.type.includes("mp4") ? " · MP4" : " · WebM"}) · Netlify 정적에서도 OK`;
-          endOnce();
-        } catch (e) {
-          endOnce(e);
-        }
+        })();
       });
       rec.start(200);
       const t0 = performance.now();
       if (hasAudioTrack) {
         audioEl.currentTime = 0;
+        applyAudioFadeAtTime(0, maxT);
         const p = audioEl.play();
         if (p && typeof p.catch === "function") {
           p.catch((e) => esf.w("export: audio play (may be ok)", e));
@@ -2033,6 +2453,15 @@ async function downloadVideoFromCanvasRecording() {
       const step = () => {
         const elapsed = (performance.now() - t0) / 1000;
         const t = Math.min(elapsed, maxT);
+        if (hasAudioTrack) {
+          applyAudioFadeAtTime(t, maxT);
+        }
+        const p = maxT > 0 ? (t / maxT) * 80 : 0;
+        setExportModalState({
+          title: "영상 녹화 중...",
+          detail: `${Math.min(t, maxT).toFixed(1)}s / ${maxT.toFixed(1)}s`,
+          progress: p,
+        });
         drawFrame(t);
         if (t >= maxT) {
           exportRaf = 0;
@@ -2097,6 +2526,9 @@ els.dropZone.addEventListener("drop", (e) => {
   if (els.stickerPalette) {
     els.stickerPalette.style.opacity = "0.35";
     els.stickerPalette.style.pointerEvents = "none";
+  }
+  if (els.audioFadeOutSec) {
+    els.audioFadeOutSec.value = String(project.audioFadeOutSec || 2);
   }
   try {
     await ensureFontsLoaded();

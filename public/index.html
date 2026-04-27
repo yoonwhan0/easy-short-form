@@ -29,6 +29,7 @@
           ><input type="file" id="images" accept="image/*,video/*" multiple hidden />사진·영상 넣기</label
         >
         <label class="btn"><input type="file" id="music" accept="audio/*" hidden />음악 넣기 (선택)</label>
+        <label>음악 페이드아웃(초) <input type="number" id="audioFadeOutSec" min="0" max="30" step="0.5" value="2" /></label>
         <button type="button" class="btn-huge" id="btnOneClick">한 번에 숏폼 만들기</button>
         <p class="hint small">사진이 없으면 샘플로 자동 구성됩니다. 음악이 있으면 그 길이에 맞춰 짜요.</p>
         <ul id="fileList" class="file-list"></ul>

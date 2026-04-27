@@ -371,3 +371,56 @@ label {
 #preview.place-mode {
   cursor: crosshair;
 }
+
+.export-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.export-modal-card {
+  width: min(92vw, 420px);
+  background: #161b22;
+  border: 1px solid #2a2f3a;
+  border-radius: 14px;
+  padding: 18px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.export-modal-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.export-modal-detail {
+  margin: 0 0 12px;
+  color: #c9d1d9;
+  font-size: 0.9rem;
+}
+
+.export-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  overflow: hidden;
+}
+
+.export-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #2ea043, #3fb950);
+  transition: width 120ms linear;
+}
+
+.export-modal-sub {
+  margin: 10px 0 0;
+  color: #9aa0a6;
+  font-size: 0.78rem;
+}
