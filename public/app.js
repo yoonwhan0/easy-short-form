@@ -54,10 +54,6 @@ const els = {
   sceneFontSize: document.getElementById("sceneFontSize"),
   audioFadeOutSec: document.getElementById("audioFadeOutSec"),
   mediaBaseScale: document.getElementById("mediaBaseScale"),
-  aiPrompt: document.getElementById("aiPrompt"),
-  aiExtremeMode: document.getElementById("aiExtremeMode"),
-  assetSourceMode: document.getElementById("assetSourceMode"),
-  stockKeywords: document.getElementById("stockKeywords"),
 };
 
 /** 스티커 팔레트 (유니코드 이모지 · API 불필요) */
@@ -281,176 +277,6 @@ function getDynamicDurations(total, count) {
 
 function autoCaption(i) {
   return captions[i % captions.length];
-}
-
-function sanitizeAiPlan(raw, sceneCount) {
-  if (!raw || typeof raw !== "object") return null;
-  const scenes = Array.isArray(raw.scenes) ? raw.scenes.slice(0, sceneCount) : [];
-  const safeScenes = scenes.map((item, i) => {
-    const text = typeof item?.text === "string" && item.text.trim() ? item.text.trim() : autoCaption(i);
-    const animation = ANIM_CATALOG.some((a) => a.value === item?.animation) ? item.animation : pickAnimation(i);
-    const effect = EFFECT_OPTIONS.some((e) => e.value === item?.effect) ? item.effect : "none";
-    const stickerEmojis = Array.isArray(item?.stickerEmojis)
-      ? item.stickerEmojis.filter((v) => typeof v === "string" && v.trim()).slice(0, 3)
-      : [];
-    return {
-      text,
-      animation,
-      effect,
-      stickerEmojis,
-      cardTitle: typeof item?.cardTitle === "string" ? item.cardTitle.trim().slice(0, 26) : "",
-      cardSubtitle: typeof item?.cardSubtitle === "string" ? item.cardSubtitle.trim().slice(0, 42) : "",
-    };
-  });
-  const globalTheme = {
-    mood: typeof raw?.mood === "string" ? raw.mood.slice(0, 24) : "",
-    palette: Array.isArray(raw?.palette)
-      ? raw.palette.filter((v) => typeof v === "string" && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(v)).slice(0, 5)
-      : [],
-    stockKeywords: Array.isArray(raw?.stockKeywords)
-      ? raw.stockKeywords.filter((v) => typeof v === "string" && v.trim()).map((v) => v.trim()).slice(0, 6)
-      : [],
-  };
-  if (!safeScenes.length) return { scenes: null, globalTheme };
-  return { scenes: safeScenes, globalTheme };
-}
-
-async function requestAiShortformPlan(sceneCount) {
-  const userPrompt = String(els.aiPrompt?.value || "").trim();
-  if (!userPrompt || sceneCount <= 0) return null;
-  const payload = {
-    prompt: userPrompt,
-    sceneCount,
-  };
-  const res = await fetch("/.netlify/functions/grok-shortform-plan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`AI 요청 실패 (${res.status}): ${msg || "서버 오류"}`);
-  }
-  const data = await res.json();
-  return sanitizeAiPlan(data, sceneCount);
-}
-
-function normalizeAssetSourceMode(v) {
-  const allowed = new Set(["local", "hybrid", "stock", "ai"]);
-  return allowed.has(v) ? v : "local";
-}
-
-function parseStockKeywords() {
-  const raw = String(els.stockKeywords?.value || "").trim();
-  if (!raw) return [];
-  return raw
-    .split(/[,\n]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 6);
-}
-
-async function fetchStockAssetUrls({ needCount, aiPrompt, aiPlanKeywords }) {
-  if (needCount <= 0) return [];
-  const explicitKeywords = parseStockKeywords();
-  const payload = {
-    count: needCount,
-    aiPrompt: String(aiPrompt || "").trim(),
-    keywords: [...explicitKeywords, ...(aiPlanKeywords || [])].slice(0, 8),
-  };
-  const res = await fetch("/.netlify/functions/stock-assets", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`스톡 에셋 요청 실패 (${res.status}): ${msg || "서버 오류"}`);
-  }
-  const data = await res.json();
-  return Array.isArray(data.items) ? data.items : [];
-}
-
-async function convertUrlToImageFile(url, index) {
-  const res = await fetch(url, { mode: "cors" });
-  if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
-  const blob = await res.blob();
-  const ext = blob.type.includes("png") ? "png" : "jpg";
-  return new File([blob], `stock-fill-${String(index + 1).padStart(2, "0")}.${ext}`, { type: blob.type || "image/jpeg" });
-}
-
-async function ensureStockExpandedMedia(targetCount, aiPrompt, aiPlanKeywords) {
-  const need = Math.max(0, targetCount - project.mediaFiles.length);
-  if (need <= 0) return 0;
-  const items = await fetchStockAssetUrls({ needCount: need, aiPrompt, aiPlanKeywords });
-  if (!items.length) return 0;
-  const created = [];
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (!item?.url) continue;
-    try {
-      const f = await convertUrlToImageFile(item.url, project.mediaFiles.length + created.length);
-      created.push(f);
-    } catch (e) {
-      esf.w("stock image fetch failed", { url: item.url, err: String(e) });
-    }
-  }
-  if (!created.length) return 0;
-  project.mediaFiles = [...project.mediaFiles, ...created];
-  renderFileList();
-  return created.length;
-}
-
-async function generateAiAssistImageBlob(index, total, theme) {
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const x = c.getContext("2d");
-  const palette = theme?.palette?.length ? theme.palette : null;
-  const fallbackHue = ((index / Math.max(1, total)) * 320 + 30) % 360;
-  const c0 = palette?.[index % palette.length] || `hsl(${fallbackHue},72%,46%)`;
-  const c1 = palette?.[(index + 1) % (palette?.length || 1)] || `hsl(${(fallbackHue + 70) % 360},58%,30%)`;
-  const g = x.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, c0);
-  g.addColorStop(1, c1);
-  x.fillStyle = g;
-  x.fillRect(0, 0, W, H);
-  x.fillStyle = "rgba(255,255,255,0.12)";
-  for (let i = 0; i < 34; i++) {
-    x.beginPath();
-    x.arc(Math.random() * W, Math.random() * H, 24 + Math.random() * 130, 0, Math.PI * 2);
-    x.fill();
-  }
-  const sc = theme?.scenes?.[index];
-  const title = sc?.cardTitle || sc?.text || `SCENE ${index + 1}`;
-  const subtitle = sc?.cardSubtitle || theme?.mood || "AI Assisted Visual";
-  x.fillStyle = "rgba(255,255,255,0.95)";
-  x.font = "bold 82px system-ui,sans-serif";
-  x.textAlign = "center";
-  x.fillText(title.slice(0, 18), W / 2, H * 0.42);
-  x.font = "48px system-ui,sans-serif";
-  x.fillStyle = "rgba(255,255,255,0.86)";
-  x.fillText(subtitle.slice(0, 24), W / 2, H * 0.5);
-  x.strokeStyle = "rgba(255,255,255,0.35)";
-  x.lineWidth = 4;
-  x.strokeRect(56, 56, W - 112, H - 112);
-  return new Promise((resolve) => {
-    c.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
-  });
-}
-
-async function ensureAiExpandedMedia(targetCount, theme) {
-  const need = Math.max(0, targetCount - project.mediaFiles.length);
-  if (need <= 0) return;
-  const start = project.mediaFiles.length;
-  const created = [];
-  for (let i = 0; i < need; i++) {
-    const idx = start + i;
-    const blob = await generateAiAssistImageBlob(idx, targetCount, theme);
-    created.push(new File([blob], `ai-fill-${String(idx + 1).padStart(2, "0")}.jpg`, { type: "image/jpeg" }));
-  }
-  project.mediaFiles = [...project.mediaFiles, ...created];
-  renderFileList();
 }
 
 function pickAnimation(i) {
@@ -1851,9 +1677,11 @@ async function oneClickShortform() {
   try {
     esf.d("oneClickShortform:start", { mediaFiles: project.mediaFiles.length });
     await ensureFontsLoaded();
-    const aiPromptText = String(els.aiPrompt?.value || "").trim();
-    const extremeMode = !!els.aiExtremeMode?.checked;
-    const sourceMode = normalizeAssetSourceMode(String(els.assetSourceMode?.value || "local"));
+    if (!project.mediaFiles.length) {
+      esf.d("oneClick: no media, fillQuickDemo");
+      await fillQuickDemo();
+      return;
+    }
     let total = 24;
     if (project.audioFile) {
       total = await getAudioDuration(project.audioFile);
@@ -1861,67 +1689,23 @@ async function oneClickShortform() {
         audioEl.src = URL.createObjectURL(project.audioFile);
       }
     }
-    const desiredFloor = extremeMode ? 10 : 1;
-    const desiredScenes = Math.min(20, Math.max(project.mediaFiles.length || 0, desiredFloor));
-    let aiResult = null;
-    try {
-      els.status.textContent = "Grok으로 연출안 생성 중…";
-      aiResult = await requestAiShortformPlan(desiredScenes);
-    } catch (aiErr) {
-      esf.w("oneClickShortform:ai plan failed, fallback", aiErr);
-    }
-    const aiPlan = aiResult?.scenes || null;
-    const aiTheme = aiResult?.globalTheme || null;
-    if (!project.mediaFiles.length && !extremeMode && sourceMode === "local") {
-      esf.d("oneClick: no media, fillQuickDemo");
-      await fillQuickDemo();
-      return;
-    }
-
-    const allowStockFill = sourceMode === "stock" || sourceMode === "hybrid";
-    const allowAiFill = sourceMode === "ai" || sourceMode === "hybrid" || extremeMode;
-    if (allowStockFill) {
-      try {
-        els.status.textContent = "스톡 에셋 자동 수급 중…";
-        await ensureStockExpandedMedia(desiredScenes, aiPromptText, aiTheme?.stockKeywords || []);
-      } catch (stockErr) {
-        esf.w("oneClickShortform:stock fill failed", stockErr);
-        els.status.textContent = "스톡 수급 실패, 다른 소스로 계속 진행합니다.";
-      }
-    }
-    if (allowAiFill) {
-      els.status.textContent = "에셋 부족분 AI 카드 자동 생성 중…";
-      await ensureAiExpandedMedia(desiredScenes, { scenes: aiPlan, ...(aiTheme || {}) });
-    }
-    if (!project.mediaFiles.length) {
-      if (sourceMode === "local") {
-        await fillQuickDemo();
-        return;
-      }
-      throw new Error("사용 가능한 미디어가 없어 자동 구성을 완료하지 못했습니다.");
-    }
     els.status.textContent = "장면 자동 구성 중…";
     await buildScenesFromDuration(total, project.mediaFiles);
     const effects = EFFECT_OPTIONS.map((e) => e.value).filter((v) => v !== "none");
     const fams = FONT_CATALOG.map((f) => f.family);
     project.scenes.forEach((sc, i) => {
-      const ai = aiPlan?.[i];
-      sc.effect = ai?.effect || effects[i % effects.length];
+      sc.effect = effects[i % effects.length];
       sc.textStyle = {
         ...sc.textStyle,
         fontFamily: fams[i % fams.length],
         liveMotion: true,
       };
-      sc.animation = ai?.animation || RANDOM_ANIMS[i % RANDOM_ANIMS.length];
-      sc.text = ai?.text || captions[i % captions.length];
+      sc.animation = RANDOM_ANIMS[i % RANDOM_ANIMS.length];
+      sc.text = captions[i % captions.length];
       sc.stickers = [];
-      const stickerSeed =
-        ai?.stickerEmojis?.length > 0
-          ? ai.stickerEmojis
-          : Array.from({ length: 3 }, (_, j) => STICKER_EMOJIS[(i * 5 + j * 11) % STICKER_EMOJIS.length]);
-      for (let j = 0; j < stickerSeed.length; j++) {
+      for (let j = 0; j < 3; j++) {
         sc.stickers.push({
-          emoji: stickerSeed[j],
+          emoji: STICKER_EMOJIS[(i * 5 + j * 11) % STICKER_EMOJIS.length],
           x: W * (0.18 + ((j * 0.26) % 0.58)),
           y: H * (0.14 + ((j * 0.12) % 0.34)),
           scale: 0.68 + (j % 5) * 0.07,
@@ -1932,9 +1716,8 @@ async function oneClickShortform() {
     selectScene(0);
     drawFrame(0);
     esf.i("oneClickShortform:ok", { scenes: project.scenes.length, total, hadMedia: true });
-    els.status.textContent = aiPlan
-      ? `✅ 완성! (${sourceMode}) Grok 추천 연출까지 적용됐어요. 미리보기 후 영상 다운로드 하세요.`
-      : `✅ 완성! (${sourceMode}) 미리보기 후 영상 다운로드 하세요.`;
+    els.status.textContent =
+      "✅ 완성! 「미리보기 재생」으로 확인한 뒤, 「영상 다운로드」로 저장하세요 (로컬 녹화).";
   } catch (err) {
     esf.e("oneClickShortform:failed", err);
     els.status.textContent = String(err?.message || err);
