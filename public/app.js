@@ -54,6 +54,7 @@ const els = {
   sceneFontSize: document.getElementById("sceneFontSize"),
   audioFadeOutSec: document.getElementById("audioFadeOutSec"),
   mediaBaseScale: document.getElementById("mediaBaseScale"),
+  aiPrompt: document.getElementById("aiPrompt"),
 };
 
 /** 스티커 팔레트 (유니코드 이모지 · API 불필요) */
@@ -277,6 +278,42 @@ function getDynamicDurations(total, count) {
 
 function autoCaption(i) {
   return captions[i % captions.length];
+}
+
+function sanitizeAiPlan(raw, sceneCount) {
+  if (!raw || typeof raw !== "object") return null;
+  const scenes = Array.isArray(raw.scenes) ? raw.scenes.slice(0, sceneCount) : [];
+  if (!scenes.length) return null;
+  return scenes.map((item, i) => {
+    const text = typeof item?.text === "string" && item.text.trim() ? item.text.trim() : autoCaption(i);
+    const animation = ANIM_CATALOG.some((a) => a.value === item?.animation) ? item.animation : pickAnimation(i);
+    const effect = EFFECT_OPTIONS.some((e) => e.value === item?.effect) ? item.effect : "none";
+    const stickerEmojis = Array.isArray(item?.stickerEmojis)
+      ? item.stickerEmojis.filter((v) => typeof v === "string" && v.trim()).slice(0, 3)
+      : [];
+    return { text, animation, effect, stickerEmojis };
+  });
+}
+
+async function requestAiShortformPlan() {
+  const userPrompt = String(els.aiPrompt?.value || "").trim();
+  const mediaCount = project.mediaFiles.length;
+  if (!userPrompt || mediaCount <= 0) return null;
+  const payload = {
+    prompt: userPrompt,
+    sceneCount: mediaCount,
+  };
+  const res = await fetch("/.netlify/functions/grok-shortform-plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error(`AI 요청 실패 (${res.status}): ${msg || "서버 오류"}`);
+  }
+  const data = await res.json();
+  return sanitizeAiPlan(data, mediaCount);
 }
 
 function pickAnimation(i) {
@@ -1691,21 +1728,34 @@ async function oneClickShortform() {
     }
     els.status.textContent = "장면 자동 구성 중…";
     await buildScenesFromDuration(total, project.mediaFiles);
+    let aiPlan = null;
+    try {
+      els.status.textContent = "Grok으로 자막/효과 추천 받는 중…";
+      aiPlan = await requestAiShortformPlan();
+    } catch (aiErr) {
+      esf.w("oneClickShortform:ai plan failed, fallback", aiErr);
+      els.status.textContent = "AI 추천 실패로 기본 자동 구성으로 진행합니다.";
+    }
     const effects = EFFECT_OPTIONS.map((e) => e.value).filter((v) => v !== "none");
     const fams = FONT_CATALOG.map((f) => f.family);
     project.scenes.forEach((sc, i) => {
-      sc.effect = effects[i % effects.length];
+      const ai = aiPlan?.[i];
+      sc.effect = ai?.effect || effects[i % effects.length];
       sc.textStyle = {
         ...sc.textStyle,
         fontFamily: fams[i % fams.length],
         liveMotion: true,
       };
-      sc.animation = RANDOM_ANIMS[i % RANDOM_ANIMS.length];
-      sc.text = captions[i % captions.length];
+      sc.animation = ai?.animation || RANDOM_ANIMS[i % RANDOM_ANIMS.length];
+      sc.text = ai?.text || captions[i % captions.length];
       sc.stickers = [];
-      for (let j = 0; j < 3; j++) {
+      const stickerSeed =
+        ai?.stickerEmojis?.length > 0
+          ? ai.stickerEmojis
+          : Array.from({ length: 3 }, (_, j) => STICKER_EMOJIS[(i * 5 + j * 11) % STICKER_EMOJIS.length]);
+      for (let j = 0; j < stickerSeed.length; j++) {
         sc.stickers.push({
-          emoji: STICKER_EMOJIS[(i * 5 + j * 11) % STICKER_EMOJIS.length],
+          emoji: stickerSeed[j],
           x: W * (0.18 + ((j * 0.26) % 0.58)),
           y: H * (0.14 + ((j * 0.12) % 0.34)),
           scale: 0.68 + (j % 5) * 0.07,
@@ -1716,8 +1766,9 @@ async function oneClickShortform() {
     selectScene(0);
     drawFrame(0);
     esf.i("oneClickShortform:ok", { scenes: project.scenes.length, total, hadMedia: true });
-    els.status.textContent =
-      "✅ 완성! 「미리보기 재생」으로 확인한 뒤, 「영상 다운로드」로 저장하세요 (로컬 녹화).";
+    els.status.textContent = aiPlan
+      ? "✅ 완성! Grok 추천 자막/효과까지 적용됐어요. 미리보기 후 영상 다운로드 하세요."
+      : "✅ 완성! 「미리보기 재생」으로 확인한 뒤, 「영상 다운로드」로 저장하세요 (로컬 녹화).";
   } catch (err) {
     esf.e("oneClickShortform:failed", err);
     els.status.textContent = String(err?.message || err);
