@@ -81,7 +81,7 @@ exports.handler = async (event) => {
     `animation은 ${ANIMATIONS.join(", ")} 중 하나만 사용.`,
     `effect는 ${EFFECTS.join(", ")} 중 하나만 사용.`,
     "형식:",
-    '{"scenes":[{"text":"짧은 자막","animation":"zoomIn","effect":"sparkle","stickerEmojis":["✨","💖"]}]}',
+    '{"mood":"감성 브이로그","palette":["#FF6B9A","#6EC5FF","#FFE27A"],"stockKeywords":["kindergarten","kids classroom","playground"],"scenes":[{"text":"짧은 자막","animation":"zoomIn","effect":"sparkle","stickerEmojis":["✨","💖"],"cardTitle":"DAY 1","cardSubtitle":"봄 여행"}]}',
   ].join("\n");
 
   const userPrompt = [
@@ -91,6 +91,9 @@ exports.handler = async (event) => {
     "- 장면 개수와 동일하게 scenes를 만든다.",
     "- 각 text는 16자 내외 한국어 자막으로 간결하게 쓴다.",
     "- stickerEmojis는 장면당 0~3개.",
+    "- cardTitle은 2~12자, cardSubtitle은 4~20자로 만든다.",
+    "- palette는 3~5개의 HEX 색상코드 배열로 만든다.",
+    "- stockKeywords는 영어 키워드 3~6개 배열(스톡 검색용)로 만든다.",
   ].join("\n");
 
   const resp = await fetch("https://api.x.ai/v1/chat/completions", {
